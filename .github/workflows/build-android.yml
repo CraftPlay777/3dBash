@@ -13,12 +13,42 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install Godot 4.3 export templates
+        run: |
+          set -eu
+          mkdir -p /github/home/.local/share/godot/export_templates/4.3.stable
+          wget -q https://downloads.tuxfamily.org/godotengine/4.3/Godot_v4.3-stable_export_templates.tpz -O /tmp/templates.tpz
+          unzip -q /tmp/templates.tpz -d /tmp/godot-templates
+          cp -r /tmp/godot-templates/templates/* /github/home/.local/share/godot/export_templates/4.3.stable/
+
+      - name: Configure Java and Android debug signing
+        run: |
+          set -eu
+          JAVA_BIN="$(command -v javac)"
+          JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVA_BIN")")")"
+          echo "JAVA_HOME=$JAVA_HOME" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME/bin" >> "$GITHUB_PATH"
+          mkdir -p /github/home/.config/godot
+          mkdir -p /github/home/.local/share/godot
+          keytool -genkeypair -v -keystore /github/home/.local/share/godot/debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US" >/dev/null
+          cat > /github/home/.config/godot/editor_settings-4.3.tres <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "/github/home/.local/share/godot/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_password = "android"
+          EOF
+
       - name: Validate project and scripts
         run: godot --headless --editor --path . --quit
+
       - name: Export APK
         run: |
           mkdir -p build
           godot --headless --path . --export-debug "Android" build/3dBash.apk
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
