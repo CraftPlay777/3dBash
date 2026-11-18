@@ -2,7 +2,9 @@ extends Node3D
 
 const PLAYER_SPEED := 5.2
 const JOY_RADIUS := 82.0
+const JOY_KNOB_LIMIT := 44.0
 var joystick_active := false
+var joystick_touch_index := -1
 var joystick_origin := Vector2.ZERO
 var joystick_vector := Vector2.ZERO
 var player: CharacterBody3D
@@ -198,35 +200,43 @@ func _process(delta):
     camera.look_at(target, Vector3.UP)
 
 func _input(event):
+    # Touch anywhere inside the joystick base; keep tracking only the finger that started it.
     if event is InputEventScreenTouch:
-        if event.pressed and event.position.x < get_viewport().size.x * 0.48 and event.position.y > get_viewport().size.y * 0.48:
+        if event.pressed and not joystick_active and joystick_base.get_global_rect().has_point(event.position):
             joystick_active = true
+            joystick_touch_index = event.index
             joystick_origin = joystick_base.global_position + joystick_base.size / 2
             update_joystick(event.position)
-        elif not event.pressed:
-            joystick_active = false
-            joystick_vector = Vector2.ZERO
-            joystick_knob.position = Vector2(53, 53)
-    elif event is InputEventScreenDrag and joystick_active:
+        elif not event.pressed and joystick_active and event.index == joystick_touch_index:
+            reset_joystick()
+    elif event is InputEventScreenDrag and joystick_active and event.index == joystick_touch_index:
         update_joystick(event.position)
+    # Mouse fallback for desktop testing.
     elif event is InputEventMouseButton:
-        if event.pressed and event.position.x < get_viewport().size.x * 0.48 and event.position.y > get_viewport().size.y * 0.48:
+        if event.pressed and not joystick_active and joystick_base.get_global_rect().has_point(event.position):
             joystick_active = true
+            joystick_touch_index = -1
             joystick_origin = joystick_base.global_position + joystick_base.size / 2
             update_joystick(event.position)
-        elif not event.pressed:
-            joystick_active = false
-            joystick_vector = Vector2.ZERO
-            joystick_knob.position = Vector2(53, 53)
-    elif event is InputEventMouseMotion and joystick_active:
+        elif not event.pressed and joystick_active and joystick_touch_index == -1:
+            reset_joystick()
+    elif event is InputEventMouseMotion and joystick_active and joystick_touch_index == -1:
         update_joystick(event.position)
+
+func reset_joystick():
+    joystick_active = false
+    joystick_touch_index = -1
+    joystick_vector = Vector2.ZERO
+    joystick_knob.position = Vector2(53, 53)
 
 func update_joystick(pos: Vector2):
     var diff := pos - joystick_origin
-    if diff.length() > JOY_RADIUS:
+    var distance := diff.length()
+    if distance > JOY_RADIUS:
         diff = diff.normalized() * JOY_RADIUS
     joystick_vector = Vector2(diff.x / JOY_RADIUS, diff.y / JOY_RADIUS)
-    joystick_knob.position = Vector2(53, 53) + diff * 0.65
+    var knob_offset := diff.normalized() * minf(distance, JOY_KNOB_LIMIT) if distance > 0.0 else Vector2.ZERO
+    joystick_knob.position = Vector2(53, 53) + knob_offset
 
 class JoystickVisual extends Control:
     var is_knob := false
