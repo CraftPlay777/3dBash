@@ -1,0 +1,25 @@
+name: Build 3dBash Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Export APK
+        run: |
+          mkdir -p build
+          godot --headless --path . --export-debug "Android" build/3dBash.apk
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3dBash-Android-APK
+          path: build/3dBash.apk
+          if-no-files-found: error
