@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Validate project and scripts
+        run: godot --headless --editor --path . --quit
       - name: Export APK
         run: |
           mkdir -p build

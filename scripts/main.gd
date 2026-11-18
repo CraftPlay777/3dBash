@@ -232,8 +232,8 @@ class JoystickVisual extends Control:
     var is_knob := false
     func _draw():
         if is_knob:
-            draw_circle(size / 2, Color(0.85, 0.94, 1, 0.9))
-            draw_circle(size / 2, Color(0.18, 0.36, 0.52, 0.45), 3.0)
+            draw_circle(size / 2, size.x / 2, Color(0.85, 0.94, 1, 0.9))
+            draw_arc(size / 2, size.x / 2, 0, TAU, 48, Color(0.18, 0.36, 0.52, 0.45), 3.0)
         else:
-            draw_circle(size / 2, Color(0.1, 0.17, 0.25, 0.42))
+            draw_circle(size / 2, size.x / 2, Color(0.1, 0.17, 0.25, 0.42))
             draw_arc(size / 2, 80, 0, TAU, 64, Color(0.75, 0.88, 1, 0.65), 4.0)
