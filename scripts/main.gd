@@ -7,6 +7,14 @@ var joystick_active := false
 var joystick_touch_index := -1
 var joystick_origin := Vector2.ZERO
 var joystick_vector := Vector2.ZERO
+var camera_touch_active := false
+var camera_touch_id := -1
+var camera_drag_offset := Vector2.ZERO
+var camera_drag_target := Vector2.ZERO
+var camera_touch_active := false
+var camera_touch_id := -1
+var camera_drag_offset := Vector2.ZERO
+var camera_drag_target := Vector2.ZERO
 var player: CharacterBody3D
 var camera: Camera3D
 var joystick_base: Control
@@ -111,7 +119,7 @@ func build_player():
     camera.current = true
     camera.fov = 70
     add_child(camera)
-    camera.position = Vector3(0, 4.3, 7.5)
+    camera.position = Vector3(0, 2.4, 5.4)
     camera.look_at(player.position + Vector3(0, 1.0, 0), Vector3.UP)
 
 func add_part(parent: Node3D, part_name: String, mesh_resource: Mesh, pos: Vector3, scale_v: Vector3, color: Color):
@@ -195,48 +203,80 @@ func _process(delta):
     player.velocity.y -= 18.0 * delta
     player.move_and_slide()
     var target := player.global_position + Vector3(0, 1.0, 0)
-    var desired_camera := player.global_position + Vector3(0, 4.0, 7.2)
-    camera.global_position = camera.global_position.lerp(desired_camera, 5.0 * delta)
+    camera_drag_offset = camera_drag_offset.lerp(camera_drag_target, 12.0 * delta)
+    if not camera_touch_active:
+        camera_drag_target = camera_drag_target.lerp(Vector2.ZERO, 3.5 * delta)
+    var yaw := camera_drag_offset.x
+    var pitch := camera_drag_offset.y
+    var distance := 5.4
+    var height := 2.4 + pitch
+    var offset := Vector3(sin(yaw) * distance, height, cos(yaw) * distance)
+    var desired_camera := player.global_position + offset
+    camera.global_position = camera.global_position.lerp(desired_camera, 8.0 * delta)
     camera.look_at(target, Vector3.UP)
 
 func _input(event):
-    # Touch anywhere inside the joystick base; keep tracking only the finger that started it.
+    var screen_width := get_viewport().get_visible_rect().size.x
+    var screen_height := get_viewport().get_visible_rect().size.y
     if event is InputEventScreenTouch:
-        if event.pressed and not joystick_active and joystick_base.get_global_rect().has_point(event.position):
-            joystick_active = true
-            joystick_touch_index = event.index
-            joystick_origin = joystick_base.global_position + joystick_base.size / 2
+        if event.pressed:
+            if event.position.x < screen_width * 0.48 and event.position.y > screen_height * 0.48 and not joystick_active:
+                joystick_active = true
+                joystick_origin = joystick_base.global_position + joystick_base.size / 2
+                update_joystick(event.position)
+            elif event.position.x >= screen_width * 0.52:
+                camera_touch_active = true
+                camera_touch_id = event.index
+                camera_drag_target = Vector2.ZERO
+        else:
+            if event.index == camera_touch_id:
+                camera_touch_active = false
+                camera_touch_id = -1
+                camera_drag_target = Vector2.ZERO
+            joystick_active = false
+            joystick_vector = Vector2.ZERO
+            if joystick_knob:
+                joystick_knob.position = Vector2(53, 53)
+    elif event is InputEventScreenDrag:
+        if event.index == camera_touch_id and camera_touch_active:
+            camera_drag_target.x += -event.relative.x * 0.012
+            camera_drag_target.y = clamp(camera_drag_target.y + event.relative.y * 0.009, -1.2, 1.2)
+            camera_drag_target.x = clamp(camera_drag_target.x, -2.7, 2.7)
+        elif joystick_active:
             update_joystick(event.position)
-        elif not event.pressed and joystick_active and event.index == joystick_touch_index:
-            reset_joystick()
-    elif event is InputEventScreenDrag and joystick_active and event.index == joystick_touch_index:
-        update_joystick(event.position)
-    # Mouse fallback for desktop testing.
     elif event is InputEventMouseButton:
-        if event.pressed and not joystick_active and joystick_base.get_global_rect().has_point(event.position):
-            joystick_active = true
-            joystick_touch_index = -1
-            joystick_origin = joystick_base.global_position + joystick_base.size / 2
+        if event.pressed:
+            if event.position.x < screen_width * 0.48 and event.position.y > screen_height * 0.48 and not joystick_active:
+                joystick_active = true
+                joystick_origin = joystick_base.global_position + joystick_base.size / 2
+                update_joystick(event.position)
+            elif event.position.x >= screen_width * 0.52:
+                camera_touch_active = true
+                camera_touch_id = -2
+                camera_drag_target = Vector2.ZERO
+        else:
+            if camera_touch_id == -2:
+                camera_touch_active = false
+                camera_touch_id = -1
+                camera_drag_target = Vector2.ZERO
+            joystick_active = false
+            joystick_vector = Vector2.ZERO
+            if joystick_knob:
+                joystick_knob.position = Vector2(53, 53)
+    elif event is InputEventMouseMotion:
+        if camera_touch_active and camera_touch_id == -2:
+            camera_drag_target.x += -event.relative.x * 0.012
+            camera_drag_target.y = clamp(camera_drag_target.y + event.relative.y * 0.009, -1.2, 1.2)
+            camera_drag_target.x = clamp(camera_drag_target.x, -2.7, 2.7)
+        elif joystick_active:
             update_joystick(event.position)
-        elif not event.pressed and joystick_active and joystick_touch_index == -1:
-            reset_joystick()
-    elif event is InputEventMouseMotion and joystick_active and joystick_touch_index == -1:
-        update_joystick(event.position)
-
-func reset_joystick():
-    joystick_active = false
-    joystick_touch_index = -1
-    joystick_vector = Vector2.ZERO
-    joystick_knob.position = Vector2(53, 53)
 
 func update_joystick(pos: Vector2):
     var diff := pos - joystick_origin
-    var distance := diff.length()
-    if distance > JOY_RADIUS:
+    if diff.length() > JOY_RADIUS:
         diff = diff.normalized() * JOY_RADIUS
     joystick_vector = Vector2(diff.x / JOY_RADIUS, diff.y / JOY_RADIUS)
-    var knob_offset := diff.normalized() * minf(distance, JOY_KNOB_LIMIT) if distance > 0.0 else Vector2.ZERO
-    joystick_knob.position = Vector2(53, 53) + knob_offset
+    joystick_knob.position = Vector2(53, 53) + diff * 0.65
 
 class JoystickVisual extends Control:
     var is_knob := false
