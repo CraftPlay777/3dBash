@@ -19,36 +19,19 @@ jobs:
           set -eu
           TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/4.3.stable"
           mkdir -p "$TEMPLATE_DIR"
-
-          # Use the official GitHub release asset, not the TuxFamily mirror.
-          TEMPLATE_URL="https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
-          curl --fail --location --retry 3 --retry-all-errors --retry-delay 5 \
-            "$TEMPLATE_URL" --output /tmp/godot-4.3-templates.tpz
-
-          # The official TPZ is a ZIP archive. Confirm that the required Android
-          # templates are present before extracting them.
-          unzip -Z1 /tmp/godot-4.3-templates.tpz > /tmp/godot-template-files.txt
-          grep -Fxq "templates/android_debug.apk" /tmp/godot-template-files.txt
-          grep -Fxq "templates/android_release.apk" /tmp/godot-template-files.txt
-          unzip -q /tmp/godot-4.3-templates.tpz \
-            "templates/android_debug.apk" \
-            "templates/android_release.apk" \
-            "templates/android_source.zip" \
-            -d /tmp/godot-templates
-
-          install -m 644 /tmp/godot-templates/templates/android_debug.apk "$TEMPLATE_DIR/android_debug.apk"
-          install -m 644 /tmp/godot-templates/templates/android_release.apk "$TEMPLATE_DIR/android_release.apk"
-          if [ -f /tmp/godot-templates/templates/android_source.zip ]; then
-            install -m 644 /tmp/godot-templates/templates/android_source.zip "$TEMPLATE_DIR/android_source.zip"
-          fi
+          TEMPLATE_URL="https://github.com/godotengine/godot-builds/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz"
+          wget -O /tmp/godot-4.3-templates.tpz --tries=3 --timeout=30 "$TEMPLATE_URL"
+          unzip -t /tmp/godot-4.3-templates.tpz
+          unzip -q -o /tmp/godot-4.3-templates.tpz -d /tmp/godot-templates
+          test -s /tmp/godot-templates/templates/android_debug.apk
+          test -s /tmp/godot-templates/templates/android_release.apk
+          cp /tmp/godot-templates/templates/* "$TEMPLATE_DIR/"
           printf '4.3.stable\n' > "$TEMPLATE_DIR/version.txt"
           ls -lh "$TEMPLATE_DIR"
 
       - name: Configure Java, Android SDK and debug signing
         run: |
           set -eu
-
-          # Configure the JDK path for Godot.
           JAVAC_BIN="$(command -v javac)"
           JAVA_HOME="$(dirname "$(dirname "$(readlink -f "$JAVAC_BIN")")")"
           test -x "$JAVA_HOME/bin/java"
@@ -57,21 +40,12 @@ jobs:
           echo "$JAVA_HOME/bin" >> "$GITHUB_PATH"
           echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> "$GITHUB_ENV"
 
-          # Install the Android platform/build-tools matching export_presets.cfg.
-          command -v sdkmanager
-          yes | sdkmanager --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
-          sdkmanager --sdk_root="$ANDROID_HOME" \
-            "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-          # Generate a CI-only debug keystore and pass it through Godot's
-          # documented Android export environment variables.
-          KEYSTORE="$HOME/.android/debug.keystore"
           mkdir -p "$HOME/.android"
-          keytool -genkeypair -noprompt -keystore "$KEYSTORE" \
+          keytool -genkeypair -noprompt -keystore "$HOME/.android/debug.keystore" \
             -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 \
             -storepass android -keypass android \
             -dname "CN=Android Debug,O=Android,C=US"
-          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$KEYSTORE" >> "$GITHUB_ENV"
+          echo "GODOT_ANDROID_KEYSTORE_DEBUG_PATH=$HOME/.android/debug.keystore" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_USER=androiddebugkey" >> "$GITHUB_ENV"
           echo "GODOT_ANDROID_KEYSTORE_DEBUG_PASSWORD=android" >> "$GITHUB_ENV"
 
